@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Verovio + MIDI Demo</title>
+
+<script src="https://www.verovio.org/javascript/latest/verovio-toolkit.js"></script>
+
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 20px;
+  }
+  #score svg {
+    width: 100%;
+  }
+  .active {
+    fill: red !important;
+    stroke: red !important;
+  }
+</style>
+</head>
+
+<body>
+
+<h2>Verovio + MIDI stepping demo</h2>
+<p>Press any MIDI key to advance.</p>
+
+<div id="score"></div>
+
+<script>
+let vrvToolkit = new verovio.toolkit();
+let currentIndex = 0;
+let noteElements = [];
+
+// Load MusicXML
+fetch("demo.musicxml")
+  .then(r => r.text())
+  .then(xml => {
+    vrvToolkit.setOptions({
+      scale: 40,
+      pageHeight: 1000,
+      pageWidth: 2000
+    });
+
+    let svg = vrvToolkit.renderData(xml, {});
+    document.getElementById("score").innerHTML = svg;
+
+    collectNotes();
+    highlightCurrent();
+  });
+
+// Collect SVG note elements
+function collectNotes() {
+  const svg = document.querySelector("#score svg");
+  noteElements = Array.from(svg.querySelectorAll(".note, .chord"));
+}
+
+// Highlight logic
+function highlightCurrent() {
+  noteElements.forEach(el => el.classList.remove("active"));
+  if (noteElements[currentIndex]) {
+    noteElements[currentIndex].classList.add("active");
+  }
+}
+
+// Advance on trigger
+function advance() {
+  if (currentIndex < noteElements.length - 1) {
+    currentIndex++;
+    highlightCurrent();
+  }
+}
+
+// --- MIDI ---
+if (navigator.requestMIDIAccess) {
+  navigator.requestMIDIAccess().then(midi => {
+    for (let input of midi.inputs.values()) {
+      input.onmidimessage = msg => {
+        const [status, note, velocity] = msg.data;
+        if (status === 144 && velocity > 0) { // note-on
+          advance();
+        }
+      };
+    }
+  });
+} else {
+  alert("Web MIDI not supported in this browser.");
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Verovio – Chord-wise MIDI Stepping</title>
+
+<script src="https://www.verovio.org/javascript/latest/verovio-toolkit.js"></script>
+
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 20px;
+  }
+  #score svg {
+    width: 100%;
+  }
+  .active {
+    fill: darkred !important;
+    stroke: darkred !important;
+  }
+</style>
+</head>
+
+<body>
+
+<h2>Chord-wise stepping (MIDI-triggered)</h2>
+<p>Press any MIDI key to advance one harmonic step.</p>
+
+<div id="score"></div>
+
+<script>
+let vrvToolkit = new verovio.toolkit();
+let chordGroups = [];
+let currentChord = 0;
+
+// --- Load score ---
+fetch("demo.musicxml")
+  .then(r => r.text())
+  .then(xml => {
+    vrvToolkit.setOptions({
+      scale: 40,
+      pageHeight: 1000,
+      pageWidth: 2000
+    });
+
+    document.getElementById("score").innerHTML =
+      vrvToolkit.renderData(xml, {});
+
+    buildChordGroups();
+    highlightCurrentChord();
+  });
+
+// --- Group notes by onset ---
+function buildChordGroups() {
+  const notes = Array.from(
+    document.querySelectorAll(".note")
+  );
+
+  const groups = {};
+
+  notes.forEach(note => {
+    // onset key = measure + timestamp
+    const measure = note.getAttribute("data-measure");
+    const startid = note.getAttribute("data-startid");
+    const key = `${measure}-${startid}`;
+
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+    groups[key].push(note);
+  });
+
+  // preserve score order
+  chordGroups = Object.values(groups);
+}
+
+// --- Highlight logic ---
+function highlightCurrentChord() {
+  document
+    .querySelectorAll(".note")
+    .forEach(n => n.classList.remove("active"));
+
+  if (!chordGroups[currentChord]) return;
+
+  chordGroups[currentChord].forEach(n =>
+    n.classList.add("active")
+  );
+}
+
+// --- Advance ---
+function advanceChord() {
+  if (currentChord < chordGroups.length - 1) {
+    currentChord++;
+    highlightCurrentChord();
+  }
+}
+
+// --- MIDI ---
+if (navigator.requestMIDIAccess) {
+  navigator.requestMIDIAccess().then(midi => {
+    for (let input of midi.inputs.values()) {
+      input.onmidimessage = msg => {
+        const [status, note, velocity] = msg.data;
+        if (status === 144 && velocity > 0) {
+          advanceChord();
+        }
+      };
+    }
+  });
+}
+</script>
+
+</body>
+</html>
