@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Harmony Viewer – Verovio + MIDI + Analysis</title>
+<title>Harmony Viewer – Debugged Analysis Overlay</title>
 
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit.js"></script>
 
@@ -14,27 +14,36 @@
 
   #score svg {
     width: 100%;
-  }
-
-  .active {
-    filter: brightness(0.8);
+    overflow: visible !important; /* 🔑 CRITICAL */
   }
 
   .controls {
     margin-bottom: 1em;
   }
 
-  #analysis {
-    margin-top: 1em;
-    font-size: 1.2em;
+  .active {
+    filter: brightness(0.85);
+  }
+
+  /* Analysis text styles */
+  .analysis-stufe {
+    font-family: "Times New Roman", serif;
+    font-size: 32px;
     font-weight: bold;
+    fill: red; /* 🔴 VERY VISIBLE */
+  }
+
+  .analysis-function {
+    font-family: system-ui, sans-serif;
+    font-size: 20px;
+    fill: blue; /* 🔵 VERY VISIBLE */
   }
 </style>
 </head>
 
 <body>
 
-<h2>Harmony Viewer</h2>
+<h2>Harmony Viewer (Debug Overlay)</h2>
 
 <div class="controls">
   <button onclick="advanceStep()">Next</button>
@@ -42,15 +51,13 @@
 </div>
 
 <div id="score"></div>
-<div id="analysis"></div>
 
 <script>
 /* ==============================
    URL PARAMETERS
 ============================== */
 function getURLParam(name) {
-  const params = new URLSearchParams(window.location.search);
-  return params.get(name);
+  return new URLSearchParams(window.location.search).get(name);
 }
 
 function deriveAnalysisPath(scorePath) {
@@ -89,129 +96,123 @@ fetch(scorePath)
 
     buildChordGroups();
     highlightCurrentStep();
-  })
-  .catch(err => {
-    console.error("Score load error:", err);
   });
 
 /* ==============================
-   LOAD ANALYSIS (OPTIONAL)
+   LOAD ANALYSIS
 ============================== */
 fetch(analysisPath)
-  .then(r => {
-    if (!r.ok) throw new Error("No analysis file");
-    return r.json();
-  })
+  .then(r => r.json())
   .then(json => {
     analysisData = json;
     console.log("Analysis loaded:", analysisData);
-    applyAnalysis();
+    highlightCurrentStep();
   })
-  .catch(() => {
-    console.log("No analysis JSON found");
-  });
+  .catch(() => console.log("No analysis JSON found"));
 
 /* ==============================
-   BUILD MUSICAL STEPS
+   BUILD STEPS
 ============================== */
 function buildChordGroups() {
   chordGroups = [];
 
-  const layers = Array.from(
-    document.querySelectorAll(".layer")
-  );
+  document.querySelectorAll(".layer").forEach(layer => {
+    Array.from(layer.children).forEach(el => {
 
-  layers.forEach(layer => {
-    const elements = Array.from(layer.children);
-
-    elements.forEach(el => {
-
-      // CHORD (simultaneity)
       if (el.classList.contains("chord")) {
-        const noteheads = Array.from(
-          el.querySelectorAll(".notehead")
-        );
-        if (noteheads.length > 0) {
-          chordGroups.push(noteheads);
-        }
+        const nh = el.querySelectorAll(".notehead");
+        if (nh.length) chordGroups.push([...nh]);
       }
 
-      // STANDALONE NOTE
       else if (el.classList.contains("note")) {
-        const notehead = el.querySelector(".notehead");
-        if (notehead) {
-          chordGroups.push([notehead]);
-        }
+        const nh = el.querySelector(".notehead");
+        if (nh) chordGroups.push([nh]);
       }
 
-      // BEAM → multiple notes
       else if (el.classList.contains("beam")) {
-        const notes = Array.from(
-          el.querySelectorAll(".note")
-        );
-        notes.forEach(note => {
-          const notehead = note.querySelector(".notehead");
-          if (notehead) {
-            chordGroups.push([notehead]);
-          }
+        el.querySelectorAll(".note").forEach(n => {
+          const nh = n.querySelector(".notehead");
+          if (nh) chordGroups.push([nh]);
         });
       }
-
-      // RESTS IGNORED (for now)
     });
   });
 
-  console.log("Total musical steps:", chordGroups.length);
+  console.log("Steps:", chordGroups.length);
 }
 
 /* ==============================
-   HIGHLIGHTING
+   HIGHLIGHT + ANALYSIS
 ============================== */
 function highlightCurrentStep() {
-  document
-    .querySelectorAll(".notehead")
-    .forEach(n => {
-      n.classList.remove("active");
-      n.style.fill = "";
-      n.style.stroke = "";
-    });
+  document.querySelectorAll(".notehead").forEach(n => {
+    n.classList.remove("active");
+    n.style.fill = "";
+  });
 
-  if (!chordGroups[currentStep]) return;
+  clearOverlay();
 
-  chordGroups[currentStep].forEach(n =>
-    n.classList.add("active")
-  );
+  const notes = chordGroups[currentStep];
+  if (!notes) return;
+
+  notes.forEach(n => n.classList.add("active"));
 
   applyAnalysis();
 }
 
-/* ==============================
-   ANALYSIS APPLICATION
-============================== */
+function clearOverlay() {
+  const old = document.getElementById("analysis-overlay");
+  if (old) old.remove();
+}
+
 function applyAnalysis() {
   if (!analysisData || !analysisData.steps) return;
 
   const step = analysisData.steps[currentStep];
-  if (!step) return;
+  if (!step || !step.stufe) return;
 
-  const color = step.color || "darkred";
-
-  chordGroups[currentStep].forEach(n => {
-    n.style.fill = color;
-    n.style.stroke = color;
-  });
-
-  updateAnalysisLabel(step);
+  placeOverlay(step);
 }
 
-function updateAnalysisLabel(step) {
-  const el = document.getElementById("analysis");
-  if (!el) return;
+function placeOverlay(step) {
+  const svg = document.querySelector("#score svg");
+  if (!svg) return;
 
-  el.textContent =
-    step.stufe
-      ? `${step.stufe}${step.function ? " – " + step.function : ""}`
-      : "";
+  const notes = chordGroups[currentStep];
+  if (!notes.length) return;
+
+  let minX = Infinity;
+  let minY = Infinity;
+
+  notes.forEach(n => {
+    const b = n.getBBox();
+    minX = Math.min(minX, b.x);
+    minY = Math.min(minY, b.y);
+  });
+
+  const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("id", "analysis-overlay");
+  g.setAttribute("pointer-events", "none");
+
+  /* 🔴 PLACE ABOVE NOTES (GUARANTEED VISIBLE) */
+  const stufe = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  stufe.setAttribute("x", minX);
+  stufe.setAttribute("y", minY - 40);
+  stufe.setAttribute("class", "analysis-stufe");
+  stufe.textContent = step.stufe;
+
+  g.appendChild(stufe);
+
+  if (step.function) {
+    const func = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    func.setAttribute("x", minX);
+    func.setAttribute("y", minY - 15);
+    func.setAttribute("class", "analysis-function");
+    func.textContent = step.function;
+    g.appendChild(func);
+  }
+
+  svg.appendChild(g);
 }
 
 /* ==============================
@@ -225,16 +226,14 @@ function advanceStep() {
 }
 
 /* ==============================
-   MIDI INPUT
+   MIDI
 ============================== */
 if (navigator.requestMIDIAccess) {
   navigator.requestMIDIAccess().then(midi => {
     for (let input of midi.inputs.values()) {
       input.onmidimessage = msg => {
-        const [status, , velocity] = msg.data;
-        if (status === 144 && velocity > 0) {
-          advanceStep();
-        }
+        const [status, , vel] = msg.data;
+        if (status === 144 && vel > 0) advanceStep();
       };
     }
   });
