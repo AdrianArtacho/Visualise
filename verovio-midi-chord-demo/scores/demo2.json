@@ -1,0 +1,8 @@
+{
+  "title": "Perfect cadence",
+  "steps": [
+    { "stufe": "i",  "function": "T", "color": "#4CAF50" },
+    { "stufe": "iv",  "function": "D", "color": "#F44336" },
+    { "stufe": "I",  "function": "T", "color": "#4CAF50" }
+  ]
+}

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Harmony Viewer – Stable HTML Overlay (Refined)</title>
+<title>Harmony Viewer – Max Controlled</title>
 
 <script src="https://www.verovio.org/javascript/latest/verovio-toolkit.js"></script>
 
@@ -58,10 +58,10 @@
 
 <body>
 
-<h2>Harmony Viewer</h2>
+<h2>Harmony Viewer (Max Controlled)</h2>
 
 <div class="controls">
-  <button onclick="advanceStep()">Next</button>
+  <button onclick="advanceStep()">Next (debug)</button>
 </div>
 
 <div id="viewer">
@@ -74,26 +74,39 @@
 </div>
 
 <script>
-/* ==============================
+/* =====================================================
+   CONFIG
+===================================================== */
+const CC_STEP_SELECT = 22;   // CC number used by Max
+const MIDI_CHANNEL  = 0;    // 0 = channel 1
+const CC_STEP_COUNT = 23; // browser → Max: number of steps
+
+/* =====================================================
    GLOBAL STATE
-============================== */
+===================================================== */
 const vrvToolkit = new verovio.toolkit();
+
 let steps = [];
 let currentStep = 0;
 let analysisData = null;
+
 let globalBaselineY = null;
 
-/* ==============================
+// MIDI
+let midiOut = null;
+let lastPlayedNotes = [];
+
+/* =====================================================
    URL PARAMETERS
-============================== */
+===================================================== */
 const params = new URLSearchParams(window.location.search);
 const scorePath = params.get("score") || "demo2.musicxml";
 const analysisPath =
   params.get("analysis") || scorePath.replace(/\.musicxml$/i, ".json");
 
-/* ==============================
+/* =====================================================
    LOAD SCORE
-============================== */
+===================================================== */
 fetch(scorePath)
   .then(r => r.text())
   .then(xml => {
@@ -102,8 +115,11 @@ fetch(scorePath)
       pageHeight: 1000,
       pageWidth: 2000,
       footer: "none",
-      header: "none"
+
+      // 🔴 REQUIRED for MIDI pitch extraction
+      svgAdditionalAttributes: true
     });
+
 
     document.getElementById("score").innerHTML =
       vrvToolkit.renderData(xml, {});
@@ -112,22 +128,20 @@ fetch(scorePath)
     renderStep();
   });
 
-/* ==============================
+/* =====================================================
    LOAD ANALYSIS (OPTIONAL)
-============================== */
+===================================================== */
 fetch(analysisPath)
   .then(r => r.json())
   .then(json => {
     analysisData = json;
     renderStep();
   })
-  .catch(() => {
-    console.log("No analysis JSON (ok)");
-  });
+  .catch(() => console.log("No analysis JSON (ok)"));
 
-/* ==============================
+/* =====================================================
    BUILD MUSICAL STEPS
-============================== */
+===================================================== */
 function buildSteps() {
   steps = [];
 
@@ -152,14 +166,15 @@ function buildSteps() {
       }
     });
   });
+
+  console.log("Total steps:", steps.length);
 }
 
-/* ==============================
+/* =====================================================
    RENDER CURRENT STEP
-============================== */
+===================================================== */
 function renderStep() {
-  document
-    .querySelectorAll(".notehead")
+  document.querySelectorAll(".notehead")
     .forEach(n => n.classList.remove("active"));
 
   const notes = steps[currentStep];
@@ -168,14 +183,15 @@ function renderStep() {
   notes.forEach(n => n.classList.add("active"));
 
   renderAnalysisHTML(notes);
+  playCurrentStep();
 }
 
-/* ==============================
+/* =====================================================
    HTML ANALYSIS OVERLAY
-============================== */
+===================================================== */
 function renderAnalysisHTML(notes) {
   const overlay = document.getElementById("analysis-overlay");
-  const viewer = document.getElementById("viewer");
+  const viewer  = document.getElementById("viewer");
 
   if (!analysisData || !analysisData.steps) {
     overlay.style.display = "none";
@@ -188,7 +204,6 @@ function renderAnalysisHTML(notes) {
     return;
   }
 
-  // --- Screen-space bounding box of current notes
   let minX = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
@@ -201,18 +216,15 @@ function renderAnalysisHTML(notes) {
   });
 
   const centerX_screen = (minX + maxX) / 2;
-
-  // --- Convert screen → viewer-local coordinates
   const viewerRect = viewer.getBoundingClientRect();
   const centerX = centerX_screen - viewerRect.left;
 
-  // --- Establish a single global vertical baseline
   if (globalBaselineY === null) {
     globalBaselineY = maxY - viewerRect.top + 10;
   }
 
   overlay.style.left = `${centerX}px`;
-  overlay.style.top = `${globalBaselineY}px`;
+  overlay.style.top  = `${globalBaselineY}px`;
   overlay.style.display = "block";
 
   overlay.querySelector(".analysis-stufe").textContent = step.stufe;
@@ -220,9 +232,97 @@ function renderAnalysisHTML(notes) {
     step.function || "";
 }
 
-/* ==============================
-   ADVANCE STEP
-============================== */
+/* =====================================================
+   MIDI PITCH EXTRACTION
+===================================================== */
+function getMidiPitch(notehead) {
+  const note = notehead.closest(".note");
+  if (!note) return null;
+
+  const xmlId = note.getAttribute("id");
+  if (!xmlId) return null;
+
+  const attrs = vrvToolkit.getElementAttr(xmlId);
+  if (!attrs) return null;
+
+  const pname = attrs.pname;
+  const oct   = parseInt(attrs.oct, 10);
+  const alter = parseInt(attrs.accid || "0", 10);
+
+  if (!pname || isNaN(oct)) return null;
+
+  const pc = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 }[pname];
+  if (pc === undefined) return null;
+
+  // MIDI note number (C4 = 60)
+  return pc + alter + (oct + 1) * 12;
+}
+
+
+
+/* =====================================================
+   MIDI PLAYBACK
+===================================================== */
+function sendNoteOn(pitch, vel = 90) {
+  if (!midiOut) {
+    console.warn("NOTE ON skipped (no midiOut)", pitch);
+    return;
+  }
+
+  console.log(
+    "%cNOTE ON",
+    "color: green; font-weight: bold;",
+    "pitch =", pitch,
+    "channel =", MIDI_CHANNEL + 1,
+    "via =", midiOut.name
+  );
+
+  midiOut.send([0x90 | MIDI_CHANNEL, pitch, vel]);
+}
+
+
+function sendNoteOff(pitch) {
+  if (!midiOut) return;
+
+  console.log(
+    "%cNOTE OFF",
+    "color: gray;",
+    "pitch =", pitch,
+    "via =", midiOut.name
+  );
+
+  midiOut.send([0x80 | MIDI_CHANNEL, pitch, 0]);
+}
+
+function stopLastNotes() {
+  lastPlayedNotes.forEach(p => sendNoteOff(p));
+  lastPlayedNotes = [];
+}
+
+function playCurrentStep() {
+  stopLastNotes();
+
+  const notes = steps[currentStep];
+  if (!notes) return;
+
+  console.group("PLAY STEP", currentStep);
+
+  notes.forEach(nh => {
+    const pitch = getMidiPitch(nh);
+    console.log("notehead → MIDI pitch:", pitch);
+    if (pitch !== null) {
+      sendNoteOn(pitch);
+      lastPlayedNotes.push(pitch);
+    }
+  });
+
+  console.groupEnd();
+}
+
+
+/* =====================================================
+   ADVANCE (DEBUG BUTTON)
+===================================================== */
 function advanceStep() {
   if (currentStep < steps.length - 1) {
     currentStep++;
@@ -230,21 +330,53 @@ function advanceStep() {
   }
 }
 
-/* ==============================
-   MIDI INPUT
-============================== */
+/* =====================================================
+   MIDI INPUT / OUTPUT
+===================================================== */
 if (navigator.requestMIDIAccess) {
   navigator.requestMIDIAccess().then(midi => {
+
+    // -------- MIDI INPUT (Max → Browser) --------
     for (let input of midi.inputs.values()) {
-      input.onmidimessage = msg => {
-        const [status, , vel] = msg.data;
-        if (status === 144 && vel > 0) {
-          advanceStep();
-        }
-      };
+      console.log("MIDI IN:", input.name);
+
+      if (input.name.includes("Max→Browser")) {
+        console.log("BOUND INPUT:", input.name);
+
+        input.onmidimessage = msg => {
+          const [status, data1, data2] = msg.data;
+          const type = status & 0xF0;
+          const chan = status & 0x0F;
+
+          // CC on channel 1
+          if (type === 0xB0 && chan === 0 && data1 === 22) {
+            const idx = data2 - 1;
+            if (idx >= 0 && idx < steps.length) {
+              currentStep = idx;
+              renderStep();
+            }
+          }
+        };
+      }
+    }
+
+    // -------- MIDI OUTPUT (Browser → Max) --------
+    for (let output of midi.outputs.values()) {
+      console.log("MIDI OUT:", output.name);
+
+      if (output.name.includes("Browser→Max")) {
+        midiOut = output;
+        console.log("BOUND OUTPUT:", output.name);
+      }
+    }
+
+    if (!midiOut) {
+      console.error("❌ No Browser→Max MIDI OUT bound");
     }
   });
 }
+
+
 </script>
 
 </body>
