@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Iframe Test</title>
+
+<style>
+  body {
+    margin: 0;
+    font-family: system-ui, sans-serif;
+  }
+  iframe {
+    width: 100%;
+    border: none;
+  }
+</style>
+</head>
+
+<body>
+
+<iframe
+  id="hv"
+  src="viewer/index.html?score=../scores/demo2.musicxml&title=HELLO&debug=yes">
+  style="width:100%; border:none;">
+</iframe>
+
+
+
+<script>
+window.addEventListener("message", event => {
+  if (event.data?.type === "harmony-viewer-resize") {
+    const iframe = document.getElementById("hv");
+    iframe.style.height = event.data.height + "px";
+  }
+});
+</script>
+
+</body>
+</html>

@@ -142,6 +142,8 @@ fetch(SCORE_PATH)
     maybeSendStepCount();
 
     clearSelection(); // default state = no highlight
+
+    notifyParentOfHeight();
   });
 
 /* =====================================================
@@ -210,6 +212,7 @@ function renderStep() {
 
   renderAnalysisHTML(notes);
   playCurrentStep();
+  notifyParentOfHeight();
 }
 
 /* =====================================================
@@ -374,6 +377,18 @@ if (navigator.requestMIDIAccess) {
     }
   });
 }
+
+function notifyParentOfHeight() {
+  const h = document.body.scrollHeight;
+  window.parent.postMessage(
+    { type: "harmony-viewer-resize", height: h },
+    "*"
+  );
+}
+
+window.addEventListener("resize", notifyParentOfHeight);
+
+
 </script>
 
 </body>
