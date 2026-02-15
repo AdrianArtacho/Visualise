@@ -1,86 +1,78 @@
-/* Base */
 html, body {
   margin: 0;
   padding: 0;
-  font-family: system-ui, sans-serif;
-  background: white;
+  width: 100%;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
-/* Keep it neat for embedding */
-body {
-  padding: 12px;
+#title {
+  margin: 10px 0 0;
+  text-align: center;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
 .controls {
-  margin: 0 0 10px 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0;
 }
 
 #viewer {
   position: relative;
-  display: inline-block;
-  width: 100%;
-}
-
-/* Let SVG scale naturally inside container */
-#score svg {
   width: 100%;
   height: auto;
+  overflow: visible;
+}
+
+#score {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+#score svg {
   display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
-/* Note highlight */
-.hv-highlight {
-  fill: #d00 !important;
-  color: #d00 !important;
-}
-
-/* -------- Analysis HTML overlay -------- */
+/* Overlay sits above SVG without touching it */
 #analysis-overlay {
   position: absolute;
+  inset: 0;
   pointer-events: none;
-  text-align: center;
+}
+
+#analysis-overlay .analysis-stufe,
+#analysis-overlay .analysis-function {
+  position: absolute;
   transform: translateX(-50%);
-  white-space: nowrap;
-  z-index: 10;
-}
-
-.analysis-stufe {
-  font-family: "Times New Roman", "Palatino Linotype", serif;
+  font-family: "Times New Roman", Times, serif;
+  font-weight: 700;
   font-size: 28px;
-  font-weight: bold;
-  line-height: 1.0;
+  color: #111;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255,255,255,0.85);
 }
 
-.analysis-function {
-  font-family: system-ui, sans-serif;
-  font-size: 16px;
-  letter-spacing: 0.05em;
-  line-height: 1.0;
+/* highlight class used by viewer.js */
+.hv-highlight {
+  fill: #d11 !important;
+  stroke: #d11 !important;
 }
 
-#analysis-overlay.inactive .analysis-stufe,
-#analysis-overlay.inactive .analysis-function {
-  color: #555;
-}
-
-#analysis-overlay.active .analysis-stufe,
-#analysis-overlay.active .analysis-function {
-  color: #d00;
-}
-
-/* Debug zoom indicator */
 #zoom-indicator {
   position: fixed;
-  bottom: 10px;
   right: 10px;
-  font-family: monospace;
-  font-size: 12px;
-  line-height: 1.2;
-  background: rgba(0, 0, 0, 0.75);
-  color: #fff;
+  bottom: 10px;
   padding: 6px 8px;
-  border-radius: 4px;
-  z-index: 9999;
-  pointer-events: none;
-  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: rgba(0,0,0,0.65);
+  color: white;
+  border-radius: 6px;
 }
