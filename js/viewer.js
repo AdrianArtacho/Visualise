@@ -4,6 +4,8 @@
    ========================================================= */
 "use strict";
 
+let isActiveViewer = false;
+
 /* ---------- URL params ---------- */
 const params = new URLSearchParams(window.location.search);
 
@@ -321,7 +323,7 @@ function highlightStep(index) {
   updateOverlayForStep(index);
 
   // --- send MIDI notes (if we have pitches) ---
-  if (midiOut) {
+  if (midiOut && isActiveViewer) {
     const pitches = stepPitches[index - 1] || [];
     if (DEBUG) console.log(`Step ${index} -> MIDI pitches to send:`, pitches);
 
@@ -460,8 +462,9 @@ function handleMIDIIn(e) {
   const [status, cc, value] = e.data;
   if ((status & 0xf0) !== 0xb0) return; // CC only
 
+  if (!isActiveViewer) return;
+
   if (cc === CC_SELECT) {
-    // value 0 clears
     highlightStep(value);
   }
 }
@@ -492,18 +495,26 @@ if (debugBtn) {
    ========================================================= */
 window.addEventListener("message", event => {
   const d = event.data;
-  if (d && d.type === "reveal-slide-visible") {
-    if (DEBUG) console.log("Reveal slide visible:", d.slideIndex);
+  if (!d || d.type !== "reveal-slide-visible") return;
 
-    if (typeof d.slideIndex === "number") sendSlideIndex(d.slideIndex);
+  // This iframe is now the ACTIVE one
+  isActiveViewer = true;
 
-    sendStepCount();
-    highlightStep(0);
-    globalBaselineY = null;
+  if (DEBUG) console.log("[viewer] activated by Reveal");
 
-    requestAnimationFrame(() => {
-      applyScoreZoom();
-      notifyParentOfHeight();
-    });
-  }
+  // Reset state on activation
+  highlightStep(0);
+  globalBaselineY = null;
+
+  // Inform Max
+  sendSlideIndex(d.slideIndex);
+  sendStepCount();
+
+  requestAnimationFrame(() => {
+    applyScoreZoom();
+    notifyParentOfHeight();
+  });
 });
+
+
+
