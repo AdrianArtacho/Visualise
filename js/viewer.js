@@ -85,6 +85,25 @@ vrv.setOptions({
   spacingSystem: 18
 });
 
+/* ---------- fetch notes: ----------*/
+function getNumericNoteId(useEl) {
+  const noteGroup = useEl.closest("g.note");
+  if (!noteGroup) return null;
+
+  const id = noteGroup.getAttribute("id"); // e.g. "n23"
+  if (!id) return null;
+
+  const m = id.match(/\d+/);
+  if (!m) return null;
+
+  const num = parseInt(m[0], 10);
+  if (isNaN(num) || num < 0 || num > 127) return null;
+
+  return num;
+}
+
+
+
 /* ---------- State ---------- */
 let steps = [];            // array of arrays of NOTEHEAD <use> elements
 let currentStep = 0;
@@ -226,6 +245,34 @@ function extractStepsChordSafe() {
   });
 }
 
+
+function getMidiPitchFromNotehead(useEl) {
+  const noteGroup = useEl.closest("g.note");
+  if (!noteGroup) return null;
+
+  // Best case: direct MIDI number
+  const dm = noteGroup.getAttribute("data-midi");
+  if (dm !== null) {
+    const m = parseInt(dm, 10);
+    if (!isNaN(m)) return m;
+  }
+
+  // Fallback: pname + oct
+  const pname = noteGroup.getAttribute("data-pname");
+  const oct = noteGroup.getAttribute("data-oct");
+  if (!pname || oct === null) return null;
+
+  const pcMap = { c:0, d:2, e:4, f:5, g:7, a:9, b:11 };
+  const pc = pcMap[pname.toLowerCase()];
+  if (pc === undefined) return null;
+
+  const o = parseInt(oct, 10);
+  if (isNaN(o)) return null;
+
+  // MIDI convention: C4 = 60 => 12*(oct+1)+pc
+  return 12 * (o + 1) + pc;
+}
+
 /* =========================================================
    Highlighting (SVG noteheads)
    ========================================================= */
@@ -257,6 +304,28 @@ function highlightStep(index) {
 
   currentStep = index;
   updateOverlayForStep(index);
+
+  if (midiOut && index > 0) {
+    const noteheads = steps[index - 1];
+    const pitches = [];
+
+    for (const u of noteheads) {
+      const p = getMidiPitchFromNotehead(u);
+      if (p !== null) pitches.push(p);
+    }
+
+    if (DEBUG) console.log(`Step ${index} pitches:`, pitches);
+
+    // note-on
+    pitches.forEach(p => midiOut.send([0x90, p, 90]));
+
+    // note-off after 250ms
+    setTimeout(() => {
+      pitches.forEach(p => midiOut.send([0x80, p, 0]));
+    }, 250);
+  }
+
+
 }
 
 /* =========================================================
