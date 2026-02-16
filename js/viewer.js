@@ -566,18 +566,21 @@
 
     if (msg.type === "harmony-activate") {
       isActiveViewer = true;
-      log("[viewer] activated");
-      
-      console.log("[viewer] ACTIVATED, slide:", currentSlideIndex); // temporary
 
-      // send counts now that we are active
+      // ✅ READ slideIndex HERE
+      currentSlideIndex = clampInt(msg.slideIndex ?? 0, 0, 127);
+
+      if (DEBUG) {
+        console.log("[viewer] ACTIVATED, slide:", currentSlideIndex);
+      }
+
       sendStepCountCc();
       sendSlideIndexCc(currentSlideIndex);
-      // make sure highlight reflects active state
       highlightStep(highlightedStep);
       notifyParentOfHeight();
       return;
     }
+
 
     if (msg.type === "harmony-deactivate") {
       isActiveViewer = false;
@@ -589,15 +592,6 @@
     if (msg.type === "harmony-request-step-count") {
       // parent can request CC23 resend (only if active)
       sendStepCountCc();
-      return;
-    }
-
-    if (msg.type === "reveal-slide-visible") {
-      // msg.index expected
-      const idx = clampInt(msg.index, 0, 127);
-      currentSlideIndex = idx;
-      if (DEBUG) console.log("Reveal slide visible:", idx);
-      sendSlideIndexCc(idx);
       return;
     }
   });

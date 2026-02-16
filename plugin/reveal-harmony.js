@@ -48,19 +48,14 @@
       }
 
       function computeSlideIndex(event) {
-        // Prefer event indices if available
         if (event && typeof event.indexh === "number") {
-          const h = event.indexh;
-          const v = typeof event.indexv === "number" ? event.indexv : 0;
-          return h * 100 + v;
+          return event.indexh;
         }
 
-        // Fallback to deck state
         const indices = deck.getIndices();
-        const h = indices.h || 0;
-        const v = indices.v || 0;
-        return h * 100 + v;
+        return typeof indices.h === "number" ? indices.h : 0;
       }
+
 
       function activateCurrentIframe(event) {
         const current = deck.getCurrentSlide();
@@ -74,10 +69,12 @@
           iframe.contentWindow.postMessage(
             {
               type: isActive ? "harmony-activate" : "harmony-deactivate",
-              slideIndex
+              slideIndex: slideIndex
             },
             "*"
           );
+
+
 
           const section = iframe.closest("section");
           if (section) {
