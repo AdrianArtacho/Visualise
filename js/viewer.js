@@ -637,6 +637,9 @@
     // Initial highlight
     highlightStep(0);
 
+    // 🔧 ADD THIS
+    sendStepCountCc();
+
     // Fit + notify
     applySvgFitToContainer();
     notifyParentOfHeight();
