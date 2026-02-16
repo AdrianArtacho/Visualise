@@ -324,25 +324,51 @@
 
     if (!analysis || !analysis.steps || stepIndex <= 0) {
       elOverlay.hidden = true;
-      elStufe.textContent = "";
-      elFunc.textContent = "";
       return;
     }
 
     const step = analysis.steps[stepIndex - 1];
     if (!step) {
       elOverlay.hidden = true;
-      elStufe.textContent = "";
-      elFunc.textContent = "";
       return;
     }
 
     elStufe.textContent = step.stufe || "";
     elFunc.textContent = step.function || "";
 
-    // show/hide
-    elOverlay.hidden = !(elStufe.textContent || elFunc.textContent);
+    const svg = elScore.querySelector("svg");
+    const viewerRect = elViewer.getBoundingClientRect();
+
+    const ids = harmonicSteps[stepIndex - 1] || [];
+    const rects = [];
+
+    for (const id of ids) {
+      const g = svg.querySelector(`#${cssEscape(id)}`);
+      if (!g) continue;
+      rects.push(g.getBoundingClientRect());
+    }
+
+    if (!rects.length) {
+      elOverlay.hidden = true;
+      return;
+    }
+
+    // Horizontal center of the chord
+    const cx =
+      rects.reduce((s, r) => s + (r.left + r.right) / 2, 0) / rects.length;
+
+    // Use your global baseline Y (already computed elsewhere)
+    const baselineY = window.__HV_GLOBAL_BASELINE_Y || rects[0].bottom;
+
+    // Convert screen → viewer coordinates
+    const left = cx - viewerRect.left;
+    const top = baselineY - viewerRect.top + 6;
+
+    elOverlay.style.left = `${left}px`;
+    elOverlay.style.top = `${top}px`;
+    elOverlay.hidden = false;
   }
+
 
   // ---------------------------
   // SVG highlight (CSS class on note groups)
