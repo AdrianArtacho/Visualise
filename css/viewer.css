@@ -93,3 +93,15 @@ html, body {
 #debug-controls[hidden] {
   display: none !important;
 }
+
+.replacement-container {
+  position: relative;
+  height: 140px; /* adjust as needed */
+}
+
+.replacement-container .replacement {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
